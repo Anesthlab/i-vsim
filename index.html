@@ -1,0 +1,550 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>穿刺シミュレーター</title>
+<style>
+  :root{
+    --bg1:#eef3f5; --bg2:#dde8ec;
+    --panel:#fff; --ink:#13242e; --ink-soft:#6a7d86; --line:#e4ebee;
+    --accent:#0f7468; --accent-deep:#0a5249; --accent-soft:#d8efea;
+    --skin1:#f7d2ba; --skin2:#eab694; --subcut:#f7e6da;
+    --vein:#3f4890; --vein-wall:#2c336e; --vein-lumen:#9aa0d4; --vein-eng:#7b83c6;
+    --blood:#cc1f2c; --blood-dk:#8e0f18;
+    --steel1:#cfd6dc; --steel2:#99a2ab; --steel3:#6f7882;
+    --cath:#5cb6e2; --cath-stroke:#2f8bc4; --hub22g:#2f9bd6;
+    --tourn:#2f6fb0; --tourn-dk:#1f4e7e;
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(120% 120% at 50% 0%,var(--bg1),var(--bg2));color:var(--ink);
+       min-height:100vh;display:flex;justify-content:center;padding:18px 14px 40px;}
+  .app{width:100%;max-width:1060px}
+  header{display:flex;align-items:baseline;gap:10px;margin:2px 4px 14px}
+  header h1{font-size:22px;margin:0;color:var(--accent-deep);font-weight:800;letter-spacing:.5px}
+  header .sub{font-size:11.5px;color:var(--ink-soft);margin-left:auto}
+
+  .gsel{display:flex;gap:8px;margin:0 2px 12px;flex-wrap:wrap}
+  .gsel .gopt{flex:1 1 0;min-width:70px;display:flex;align-items:center;justify-content:center;gap:7px;
+        border:1.5px solid var(--line);background:#fff;border-radius:11px;padding:9px 6px;cursor:pointer;
+        font-size:13px;font-weight:800;color:var(--ink-soft);transition:.12s}
+  .gsel .gopt .dot{width:15px;height:15px;border-radius:50%;border:1.5px solid #ffffffcc;box-shadow:0 0 0 1px #00000018}
+  .gsel .gopt.on{color:var(--ink);border-color:var(--accent);box-shadow:0 4px 10px rgba(15,116,104,.14)}
+  .gsel .gopt.on .dot{box-shadow:0 0 0 2px var(--accent)}
+
+  .main{display:flex;flex-direction:column;gap:14px}
+  .left{min-width:0}
+  .right{min-width:0;display:flex;flex-direction:column}
+  @media(min-width:860px){
+    .main{flex-direction:row;align-items:flex-start;gap:20px}
+    .left{flex:1 1 56%;position:sticky;top:18px}
+    .right{flex:1 1 44%}
+  }
+
+  .stage{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+         overflow:hidden;box-shadow:0 8px 24px rgba(20,50,60,.06);touch-action:none}
+  .zoomInset{position:absolute;right:10px;bottom:10px;width:44%;max-width:236px;border:2.5px solid #fff;border-radius:11px;
+         overflow:hidden;box-shadow:0 5px 16px rgba(20,50,60,.28);background:#eef6f9;z-index:3}
+  .zoomInset svg{display:block;width:100%;aspect-ratio:100/34;background:#eef6f9}
+  .zoomInset .zlabel{position:absolute;top:4px;left:5px;font-size:9.5px;font-weight:800;color:var(--accent-deep);
+         background:#ffffffe6;padding:1.5px 6px;border-radius:6px;border:1px solid var(--line)}
+  .stage svg.scene{display:block;width:100%;height:auto}
+  .badge{position:absolute;bottom:10px;left:12px;font-size:12px;color:var(--ink-soft);
+         background:#ffffffcc;backdrop-filter:blur(2px);padding:3px 9px;border-radius:8px;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .badge b{color:var(--ink);font-size:15px}
+  .tchip{position:absolute;top:40px;right:12px;font-size:12px;font-weight:800;color:#fff;background:#cf4d3a;
+         padding:4px 11px;border-radius:999px;opacity:0;transition:opacity .25s;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .tchip.on{opacity:1}
+  .toast{position:absolute;left:50%;top:14px;transform:translate(-50%,-6px);background:#13242ecc;color:#fff;
+         font-weight:800;font-size:14px;padding:7px 15px;border-radius:999px;opacity:0;pointer-events:none;
+         transition:opacity .2s, transform .2s;white-space:nowrap;text-align:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast.warn{background:#b23a2ecc}.toast.ok{background:#127a4dcc}
+
+  .zoom{background:#f2f8fa;border:1px solid var(--line);border-top:1px dashed #bcd4dc;border-radius:0 0 16px 16px;position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(20,50,60,.06)}
+  .zoom .zh{position:absolute;top:8px;left:10px;font-size:11px;font-weight:800;color:var(--accent-deep);background:#ffffffe6;padding:3px 9px;border-radius:8px;z-index:2;border:1px solid var(--line)}
+  .zoom svg{display:block;width:100%;aspect-ratio:100/34;background:#f2f8fa}
+
+  .hintp{border-radius:11px;padding:12px 13px;font-size:14px;font-weight:700;text-align:center;
+         background:var(--accent-soft);color:var(--accent-deep);display:flex;gap:8px;align-items:center;justify-content:center}
+  .hintp .k{background:var(--accent);color:#fff;border-radius:7px;font-size:11px;padding:3px 7px;flex:none}
+  .hintp.bad{background:#fdecec;color:#b23a2e}.hintp.bad .k{background:#c0392b}
+  .hintp.done{background:#e7f8ef;color:#127a4d}.hintp.done .k{background:#1b9c66}
+
+  .note{margin-top:8px;font-size:12.5px;line-height:1.5;color:var(--ink-soft);background:#fff;border:1px solid var(--line);
+        border-radius:10px;padding:9px 12px;min-height:20px}
+  .note:empty{display:none}
+
+  .panel{margin-top:9px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .sbtn{border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:11px;padding:12px 8px;
+        font-size:13.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.12s;min-height:48px;text-align:center;line-height:1.2}
+  .sbtn:active{transform:translateY(1px)}
+  .sbtn[disabled]{opacity:.4;cursor:not-allowed}
+  .sbtn.cur{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 5px 12px rgba(15,116,104,.25)}
+  .sbtn.fin{border-color:#bfe3cf;background:#eefaf2;color:#1b8a5a}
+  .sbtn.drag{border-color:#e0a33a;background:#fff7ea;color:#b8791b;animation:breathe 1.3s ease-in-out infinite}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(224,163,58,0)}50%{box-shadow:0 0 0 4px rgba(224,163,58,.18)}}
+  .sbtn .c{font-size:13px}
+  .sbtn .n{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;
+        background:#eef2f4;color:var(--ink-soft);font-size:11px;font-weight:800;margin-right:4px;flex:none}
+  .sbtn.cur .n{background:#ffffff3d;color:#fff}.sbtn.fin .n{background:#cdeeda;color:#1b8a5a}.sbtn.drag .n{background:#f6e3c2;color:#b8791b}
+
+  .ctl{margin-top:9px;display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px}
+  .ctl label{font-size:13px;font-weight:700;color:var(--ink-soft);flex:none;line-height:1.15}
+  .ctl-sub{font-size:10.5px;font-weight:700;color:var(--accent-deep)}
+  .ctl input[type=range]{flex:1;accent-color:var(--accent)}
+  .ctl .ang{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);min-width:34px;text-align:right}
+  .angGuide{margin-top:6px;display:flex;gap:6px;font-size:11px;font-weight:800}
+  .angGuide .zone{flex:1;text-align:center;padding:5px;border-radius:8px}
+  .angGuide .shallow{background:#e7f8ef;color:#127a4d;border:1px solid #bfe3cf}
+  .angGuide .deep{background:#fef4e6;color:#a5691a;border:1px solid #f0d9ad}
+
+  .foot{margin-top:10px;display:flex;justify-content:flex-end}
+  .reset{border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:9px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .reset:hover{background:#f6f9fa;color:var(--accent-deep)}
+
+  .ref{margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .ref summary{cursor:pointer;padding:12px 14px;font-size:13.5px;font-weight:800;color:var(--accent-deep);list-style:none}
+  .ref summary::-webkit-details-marker{display:none}
+  .ref summary::before{content:'▸ ';color:var(--ink-soft)}
+  .ref[open] summary::before{content:'▾ '}
+  .ref ol,.ref ul{margin:0;padding:2px 18px 14px 30px;font-size:12.5px;line-height:1.7;color:var(--ink)}
+  .ref li{margin:5px 0}.ref b{color:var(--accent-deep)}
+
+  @keyframes pulse{0%,100%{opacity:.15}50%{opacity:.85}}
+  .pulse{animation:pulse 1.2s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.pulse,.sbtn.drag{animation:none!important}}
+</style>
+
+<div class="app">
+  <header><h1>穿刺シミュレーター</h1><span class="sub">末梢静脈路確保・静脈留置針</span></header>
+
+  <div class="gsel" id="gsel"></div>
+
+  <div class="main">
+    <div class="left">
+      <div class="stage" id="stage">
+        <div class="badge">針の角度 <b id="angleVal">20</b>°</div>
+        <div class="toast" id="toast"></div>
+
+        <svg class="scene" id="scene" viewBox="0 -50 600 256" role="img" aria-label="静脈穿刺の断面シミュレーション">
+          <defs>
+            <linearGradient id="gSkin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--skin1)"/><stop offset="1" stop-color="var(--skin2)"/></linearGradient>
+            <linearGradient id="gSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--steel1)"/><stop offset=".5" stop-color="var(--steel2)"/><stop offset="1" stop-color="var(--steel3)"/></linearGradient>
+            <linearGradient id="gTourn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a8ac9"/><stop offset=".5" stop-color="var(--tourn)"/><stop offset="1" stop-color="#255d97"/></linearGradient>
+            <radialGradient id="gHem" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="var(--blood-dk)" stop-opacity=".55"/><stop offset="1" stop-color="var(--blood-dk)" stop-opacity="0"/></radialGradient>
+          </defs>
+          <g id="world">
+            <rect x="0" y="80" width="600" height="130" fill="var(--subcut)"/>
+            <rect id="veinWall" x="-10" y="88" width="620" height="20" rx="10" fill="var(--vein)" style="transition:y .3s,height .3s"/>
+            <rect id="veinLumen" x="-10" y="91" width="620" height="14" rx="7" fill="var(--vein-lumen)" style="transition:y .3s,height .3s,fill .3s"/>
+            <text x="592" y="86" text-anchor="end" font-size="10.5" fill="var(--vein-wall)" font-weight="700">静脈</text>
+            <ellipse id="hematoma" cx="300" cy="98" rx="44" ry="13" fill="url(#gHem)" opacity="0" style="transition:opacity .3s"/>
+            <ellipse id="occl" cx="200" cy="98" rx="15" ry="8" fill="var(--vein-wall)" opacity="0" style="transition:opacity .25s"/>
+
+            <rect x="0" y="72" width="600" height="9" fill="url(#gSkin)"/>
+            <line x1="0" y1="72" x2="600" y2="72" stroke="#d99572" stroke-width="1.6"/>
+            <text x="8" y="66" font-size="9.5" fill="#b98763" font-weight="700">皮膚</text>
+            <ellipse id="sheen" cx="250" cy="76" rx="46" ry="5.5" fill="#ffffff" opacity="0" style="transition:opacity .3s"/>
+
+            <!-- 駆血帯：穿刺部より中枢側(右)で腕に巻いた平ゴム（皮膚の上に乗る） -->
+            <g id="tband" opacity="0" style="transition:opacity .3s">
+              <!-- 平ゴムの帯（少したわむ） -->
+              <path d="M 488 40 C 500 33 542 33 554 40 L 554 68 C 542 76 500 76 488 68 Z"
+                    fill="url(#gTourn)" stroke="var(--tourn-dk)" stroke-width="1.6" stroke-linejoin="round"/>
+              <!-- ゴムのマットな艶と陰 -->
+              <path d="M 492 44 C 504 38 538 38 550 44" fill="none" stroke="#ffffff" stroke-width="3" opacity=".16" stroke-linecap="round"/>
+              <path d="M 492 66 C 504 72 538 72 550 66" fill="none" stroke="#0b2d4a" stroke-width="3" opacity=".12" stroke-linecap="round"/>
+              <!-- ゴムの伸びシワ -->
+              <path d="M 508 37 C 506 48 506 60 508 72 M 524 36 C 522 48 522 61 524 73 M 540 37 C 538 48 538 60 540 72"
+                    fill="none" stroke="#0b2d4a" stroke-width=".8" opacity=".14"/>
+              <text x="521" y="28" text-anchor="middle" font-size="9" fill="var(--tourn-dk)" font-weight="800">駆血帯</text>
+            </g>
+
+            <!-- 内筒（金属針＋長い逆血チャンバー）。ベベル=ローカル245＝NEEDLE_LEN。外筒より先に描く -->
+            <g id="needleG">
+              <rect x="-16" y="-8" width="16" height="16" rx="5" fill="#8a939c"/>
+              <rect x="-16" y="-8" width="16" height="6" rx="4" fill="#a7b0b8"/>
+              <rect x="2" y="-7" width="74" height="14" rx="6" fill="#eef3f5" fill-opacity=".9" stroke="#b9c2c8" stroke-width="1.1"/>
+              <rect id="nBlood" x="5" y="-4.4" width="68" height="8.8" rx="4" fill="var(--blood)" fill-opacity="0" style="transition:fill-opacity .2s"/>
+              <rect x="76" y="-1.6" width="159" height="3.2" rx="1.6" fill="url(#gSteel)"/>
+              <line x1="80" y1="-0.5" x2="235" y2="-0.5" stroke="#fff" stroke-width=".7" opacity=".5"/>
+              <polygon points="245,0 235,-2.3 235,2.3" fill="var(--steel3)"/>
+              <line x1="236" y1="-1.5" x2="244" y2="-0.2" stroke="#eef2f4" stroke-width=".7" opacity=".7"/>
+            </g>
+
+            <!-- 外筒（半透明。内筒の上に重ね、逆血が内側を満たす） -->
+            <g id="cathG">
+              <path id="cOutline" d="" fill="none" stroke="var(--cath-stroke)" stroke-width="9.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path id="cTube" d="" fill="none" stroke="var(--cath)" stroke-opacity=".42" stroke-width="7.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path id="cBlood" d="" fill="none" stroke="var(--blood)" stroke-opacity=".9" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
+              <g id="cHub">
+                <path id="cWing1" d="M2,-8.5 l-13,-6 0,6 z" fill="var(--hub22g)" stroke="#00000022" stroke-width=".8"/>
+                <path id="cWing2" d="M2,8.5 l-13,6 0,-6 z" fill="var(--hub22g)" stroke="#00000022" stroke-width=".8"/>
+                <rect id="cHubRect" x="0" y="-8.5" width="50" height="17" rx="5.5" fill="var(--hub22g)" stroke="#00000033" stroke-width="1.1"/>
+                <rect x="0" y="-8.5" width="50" height="5.5" rx="5" fill="#ffffff" fill-opacity=".3"/>
+                <text id="cGaugeText" x="25" y="3.6" text-anchor="middle" font-size="9" font-weight="800" fill="#fff">22G</text>
+              </g>
+              <circle id="cGlow" r="11" fill="none" stroke="#7fe0ff" stroke-width="3" opacity="0" class="pulse"/>
+            </g>
+
+          </g>
+
+          <!-- 断面ズームに映さないオーバーレイ（world外に置く） -->
+          <!-- 皮膚を末梢へ牽引する手：母指を皮膚とほぼ平行に寝かせて押さえ、左へ引く。接地面=y0 -->
+          <g id="stretch" opacity="0" style="transition:opacity .25s">
+            <!-- 手のひら／母指球（左へ続く） -->
+            <path d="M -50 -24 C -70 -27 -86 -20 -88 -8 C -90 3 -78 7 -62 5 L -48 3 Z"
+                  fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.5" stroke-linejoin="round"/>
+            <!-- 母指（水平に寝かせて皮膚を押さえる） -->
+            <path d="M 12 -9 C 12 -18 4 -22 -6 -22 L -42 -21 C -54 -21 -60 -16 -60 -9 C -60 -2 -54 1 -42 1 L -6 1 C 4 1 12 -2 12 -9 Z"
+                  fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.5" stroke-linejoin="round"/>
+            <!-- 母指の爪（上面） -->
+            <path d="M -2 -18 C 5 -18 9 -14 9 -10 C 9 -6 5 -3 -2 -3 C -6 -3 -8 -6 -8 -10 C -8 -14 -6 -18 -2 -18 Z"
+                  fill="#f7d7c2" stroke="#d9ac8e" stroke-width=".7"/>
+            <!-- 指節のしわ／母指球の陰 -->
+            <path d="M -28 -20 C -26 -13 -26 -6 -28 0" fill="none" stroke="#cf9a76" stroke-width=".9" opacity=".4"/>
+            <path d="M -50 -22 C -48 -12 -48 -6 -50 2" fill="none" stroke="#cf9a76" stroke-width=".9" opacity=".35"/>
+            <!-- 末梢(左)への牽引矢印 -->
+            <g transform="translate(-98 -10)"><line x1="6" y1="0" x2="-11" y2="0" stroke="#127a4d" stroke-width="2.6"/><path d="M-12,0 l9,-5 0,10 z" fill="#127a4d"/></g>
+          </g>
+          <!-- 中枢側を圧迫する手：人差し指で押さえる。指先=原点(0,0) -->
+          <g id="finger" opacity="0" style="transition:opacity .25s">
+            <!-- 手の甲〜手首（右上へ続く） -->
+            <path d="M 2 -34 C -8 -38 -8 -54 -2 -63 C 6 -74 24 -77 40 -73 L 60 -68 C 70 -65 72 -56 70 -47 L 68 -38 C 66 -30 56 -27 44 -28 L 14 -30 C 6 -30 3 -32 2 -34 Z"
+                  fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.6" stroke-linejoin="round"/>
+            <!-- 握った中指・薬指・小指（甲の右下のふくらみ） -->
+            <path d="M 46 -63 C 60 -63 66 -57 66 -51 C 66 -45 60 -41 46 -42" fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.2"/>
+            <path d="M 44 -44 C 58 -44 64 -39 64 -34 C 64 -29 57 -26 44 -27" fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.2"/>
+            <!-- 親指（手前側・下向き） -->
+            <path d="M 22 -30 C 34 -28 40 -19 38 -9 C 36 -1 28 2 22 -2 C 16 -6 14 -18 18 -27 Z"
+                  fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.4" stroke-linejoin="round"/>
+            <!-- 人差し指（下へ伸ばして圧迫） -->
+            <path d="M -8 -32 L -8 -10 C -8 -2 -5 2 0 2 C 5 2 8 -2 8 -10 L 8 -32 Z"
+                  fill="url(#gSkin)" stroke="#cf9a76" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M -6 -20 C -2 -17 2 -17 6 -20" fill="none" stroke="#cf9a76" stroke-width=".9" opacity=".45"/>
+            <!-- 爪 -->
+            <path d="M -4 -4 C -4 -7 -2 -9 0 -9 C 2 -9 4 -7 4 -4 L 4 0 C 2 1.6 -2 1.6 -4 0 Z"
+                  fill="#f7d7c2" stroke="#d9ac8e" stroke-width=".6"/>
+          </g>
+          <g id="swab" opacity="0">
+            <line x1="0" y1="-30" x2="0" y2="-9" stroke="#9aa3ac" stroke-width="3"/>
+            <circle cx="0" cy="0" r="11" fill="#f4e7c8" stroke="#d8c79a" stroke-width="1.2"/>
+          </g>
+          <g id="ivset" opacity="0" style="transition:opacity .4s">
+            <line x1="90" y1="-3" x2="90" y2="3" stroke="#9aa9b3" stroke-width="1.6"/>
+            <path d="M84 1 h12 a1.5 1.5 0 0 1 1.5 1.5 v2 h-16 v-2 a1.5 1.5 0 0 1 1.5 -1.5 z" fill="#c7d6df"/>
+            <path d="M74 5 h32 a3 3 0 0 1 3 3 v33 a7 7 0 0 1 -7 7 h-27 a7 7 0 0 1 -7 -7 v-33 a3 3 0 0 1 3 -3 z" fill="#eef7fc" stroke="#a9c9dc" stroke-width="1.4"/>
+            <path d="M67 27 h42 v14 a7 7 0 0 1 -7 7 h-28 a7 7 0 0 1 -7 -7 z" fill="#cfe8f6"/>
+            <rect x="80" y="14" width="32" height="3" rx="1.5" fill="#ffffff" opacity=".5"/>
+            <rect x="83" y="49" width="10" height="17" rx="4.5" fill="#f2f9fc" stroke="#a9c9dc" stroke-width="1.1"/>
+            <path d="M85 52 q3 -3 6 0" fill="none" stroke="#9cc7e0" stroke-width="1"/>
+            <ellipse cx="88" cy="60" rx="3" ry="2.6" fill="#cfe8f6"/>
+            <circle cx="88" cy="56.5" r="1.1" fill="#8fbcd6"/>
+            <path id="ivpath" d="" fill="none" stroke="#c4ced4" stroke-width="3.6" stroke-linecap="round"/>
+            <path id="ivpath2" d="" fill="none" stroke="#eef4f7" stroke-width="1.3" stroke-linecap="round"/>
+            <g id="ivclamp"><rect x="-5" y="-7" width="10" height="14" rx="2.5" fill="#e9eef2" stroke="#9aa9b3" stroke-width="1"/><circle cx="0" cy="0" r="2.4" fill="#b7c2cc"/></g>
+          </g>
+          <g id="dressing" opacity="0" style="transition:opacity .35s">
+            <rect id="drect" x="0" y="0" width="104" height="46" rx="9" fill="#bfe3f2" fill-opacity=".3" stroke="#7fb9d4" stroke-width="1.4"/>
+          </g>
+          <rect id="zoomRect" x="0" y="0" width="100" height="34" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-dasharray="5 4" opacity="0" pointer-events="none"/>
+        </svg>
+        <div class="zoomInset">
+          <div class="zlabel">🔍 拡大</div>
+          <svg id="zoomSvg" viewBox="0 0 100 34" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#world"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="hintp" id="hintp"><span class="k">手技</span><span id="hintt">駆血する</span></div>
+      <div class="note" id="note"></div>
+      <div class="panel" id="panel"></div>
+      <div class="foot"><button class="reset" id="reset">↺ 最初からやり直す</button></div>
+
+      <details class="ref">
+        <summary>正しい手順とよくある失敗（カンペ）</summary>
+        <b style="display:block;padding:0 14px 4px;font-size:12.5px;color:var(--accent-deep)">手順</b>
+        <ol>
+          <li>駆血帯を穿刺部より<b>中枢側</b>に巻く（静脈を怒張させる）</li>
+          <li>器具（外筒の滑り）を確認 → 穿刺部を中心から外へ消毒</li>
+          <li>穿刺部の<b>末梢側で皮膚を末梢へ牽引</b>し血管を固定</li>
+          <li>10〜30°で穿刺 →<b>内筒（チャンバー）に逆血</b></li>
+          <li>もう少し進めて<b>外筒にも逆血</b>（外筒先端が血管内に入った合図）</li>
+          <li>針を<b>寝かせて</b>、内筒は固定し<b>外筒だけ</b>を後壁に沿わせて根元まで（ハブだけ皮膚外）</li>
+          <li><b>駆血帯を外す</b></li>
+          <li>抜針の直前だけ<b>中枢側を圧迫</b>→<b>内筒を抜く</b>→接続時に圧迫解除→ルート接続→固定</li>
+        </ol>
+        <b style="display:block;padding:6px 14px 4px;font-size:12.5px;color:var(--accent-deep)">よくある失敗</b>
+        <ul>
+          <li><b>後壁を貫通</b>：深く刺しすぎ。逆血が消え血腫に。→ 針先を引き戻して再確認。</li>
+          <li><b>寝かせずに進めた</b>：外筒が壁に当たり進まない／後壁を破る。</li>
+          <li><b>内筒ごと進めた</b>：血管を突き破る。→ 内筒は固定、外筒だけ送る。</li>
+          <li><b>圧迫せず抜針</b>：出血・漏れ。→ 抜針時だけ中枢側を圧迫。</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const scene=$('#scene'), zoomSvg=$('#zoomSvg');
+const rad=d=>d*Math.PI/180;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+const SKIN=72;
+const LUMEN_T=90, LUMEN_B=106, LUMEN_C=98;
+const BACKY=LUMEN_B-5;
+const BACK_WALL=LUMEN_B+6;
+const ENTRY_MIN=238, ENTRY_MAX=272;
+const NEEDLE_LEN=245, GAP=16, ADV_LEN=110, NEEDLE_OUT=290, LAY_ANGLE=15;   // 内筒(245)＞外筒(150)。逆血チャンバーは外筒ハブ(軸-166)より後方に露出
+const ZW=100, ZH=34;   // ズームの取り込み範囲
+
+// 留置針のゲージ（国際カラーコード）— 商品名は使わない
+const GAUGES=[
+ {g:'24G', c:'#efc400'},   // 黄
+ {g:'22G', c:'#2f9bd6'},   // 青
+ {g:'20G', c:'#e87fa6'},   // ピンク
+ {g:'18G', c:'#3fae5a'},   // 緑
+];
+let gaugeIdx=1;   // 既定=22G（青）。resetでは保持
+function buildGsel(){
+  const el=$('#gsel'); el.innerHTML='';
+  GAUGES.forEach((gg,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='gopt'+(i===gaugeIdx?' on':'');
+    b.innerHTML=`<span class="dot" style="background:${gg.c}"></span>${gg.g}`;
+    b.onclick=()=>{ gaugeIdx=i; buildGsel(); render(); };
+    el.appendChild(b);
+  });
+}
+
+let st, drag=false, busy=false, gen=0;
+function reset(){
+  gen++;   // 進行中のアニメ/タイマーを無効化（リセット後に再接続されるのを防ぐ）
+  st={tip:{x:250,y:56}, angle:20, cath:0, ret:0, checkSlide:0, sheenX:250, entryX:null, tractPull:0,
+      tourniquet:false, checked:false, disinfected:false, swabActive:false, stretched:false,
+      innerSeen:false, outerSeen:false, laid:false, advanced:false, tourReleased:false, compress:false,
+      connected:false, taped:false, pInner:false, pOuter:false, pBack:false, pPlaced:false};
+  $('#swab').setAttribute('opacity',0); busy=false; drag=false; render();
+}
+const placed=()=>st.cath>=1;
+const needleOut=()=>st.ret>=1;
+
+function geo(){
+  const th=rad(st.angle), dy=Math.sin(th), tip=st.tip, inserted=tip.y>=SKIN;
+  const cTipY=tip.y - dy*GAP;                       // 剛体時の外筒先端y
+  const innerFlash=inserted && tip.y>LUMEN_T && tip.y<BACK_WALL;
+  const outerFlash=inserted && cTipY>LUMEN_T && tip.y<BACK_WALL;   // 外筒先端が内腔
+  const throughBack=inserted && tip.y>=BACK_WALL;
+  return {inserted,innerFlash,outerFlash,throughBack};
+}
+
+function toast(m,c){const t=$('#toast');t.textContent=m;t.className='toast show'+(c?(' '+c):'');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast'+(c?(' '+c):''),1400);}
+
+// ---- 手順（7ステップ）----
+const STEPS=[
+ {id:'tour', lbl:'駆血する', note:'駆血帯を穿刺部より中枢側に巻く。静脈が怒張して狙いやすくなる。',
+   fin:()=>st.tourniquet, run:()=>{st.tourniquet=true;toast('駆血した — 静脈が怒張','ok');}},
+ {id:'prep', lbl:'器具確認・消毒', note:'外筒の滑りを確認 → 穿刺部を中心から外へ消毒（自動でお手本を表示）。',
+   fin:()=>st.disinfected, run:doPrep},
+ {id:'stretch', lbl:'皮膚を伸展する', note:'消毒後、穿刺部の末梢側で皮膚を末梢方向へ引っ張り伸展。血管を固定して動かないようにする必須手技。',
+   fin:()=>st.stretched, run:doStretch},
+ {id:'punc', lbl:'穿刺する', note:'皮膚を伸展したまま画面をドラッグして針を血管へ。まず内筒に逆血、もう少し進めて外筒にも逆血が出たらOK。', manual:true,
+   fin:()=>placed()||st.laid||(st._g&&st._g.outerFlash)},
+ {id:'lay', lbl:'寝かせて数mm進める', note:'逆血確認後、落ち着いて針を寝かせ、そのまま数mm前進。外筒先端を確実に血管内へ入れる大事な手技。',
+   fin:()=>st.laid||placed(), run:doLay},
+ {id:'adv', lbl:'外筒を留置する', note:'内筒は固定。外筒だけが内筒に沿って入り、後壁に沿って屈曲しながら根元まで（ハブだけ皮膚外）。',
+   fin:()=>placed(), run:doAdvance},
+ {id:'rel', lbl:'駆血を外す', note:'留置できたら、まず駆血帯を外す。',
+   fin:()=>st.tourReleased, run:()=>{st.tourReleased=true;toast('駆血 解除','ok');}},
+ {id:'fin', lbl:'抜針〜接続・固定', note:'①抜針の直前に中枢側を圧迫 →②内筒を抜く →③接続時に圧迫を解除しルート接続 →④固定。',
+   fin:()=>st.taped, run:doFinish},
+];
+
+function hint(g){
+  if(st.taped) return {t:'カニュレーション完了 ✓',c:'done'};
+  if(g.throughBack) return {t:'後壁を貫通！針先を少し引き戻す',c:'bad'};
+  const cur=STEPS.find(s=>!s.fin());
+  if(!cur) return {t:'完了'};
+  if(cur.id==='punc'){
+    if(g.outerFlash) return {t:'外筒にも逆血！「寝かせる」へ',c:'done'};
+    if(g.innerFlash) return {t:'内筒に逆血！もう少し進めて外筒にも逆血を',c:'done'};
+    return {t:'画面をドラッグして血管へ刺す'};
+  }
+  return {t:cur.lbl};
+}
+
+function render(){
+  const g=geo(); st._g=g;
+  if(g.innerFlash&&!st.pInner&&!st.laid){toast('内筒に逆血！','ok');st.innerSeen=true;}
+  if(g.outerFlash&&!st.pOuter&&!st.laid){toast('外筒に逆血！','ok');st.outerSeen=true;}
+  if(g.throughBack&&!st.pBack)toast('後壁を貫いた！','warn');
+  if(placed()&&!st.pPlaced)toast('外筒を血管内に留置','ok');
+  st.pInner=g.innerFlash;st.pOuter=g.outerFlash;st.pBack=g.throughBack;st.pPlaced=placed();
+
+  const th=rad(st.angle), dx=Math.cos(th), dy=Math.sin(th), N=st.tip;
+
+  // 内筒
+  const nTip={x:N.x - dx*st.ret*NEEDLE_OUT, y:N.y - dy*st.ret*NEEDLE_OUT};
+  const nHub={x:nTip.x - dx*NEEDLE_LEN, y:nTip.y - dy*NEEDLE_LEN};
+  $('#needleG').setAttribute('transform',`translate(${nHub.x} ${nHub.y}) rotate(${st.angle})`);
+  $('#needleG').style.opacity=needleOut()?0:1; $('#needleG').style.transition='opacity .3s';
+  $('#nBlood').setAttribute('fill-opacity',(g.innerFlash&&!needleOut())?1:0);
+
+  // 外筒：一定長のカテーテルが針軸に沿ってスライド前進（伸びずに滑り込む）。血管内で屈曲。
+  const dyv=dy||0.001;
+  const t_E=Math.max((N.y-SKIN)/dyv,0);            // 針先→皮膚の軸距離
+  const CATH_TOTAL=150, HUB_STICK=14;
+  const Ltip1=Math.max(CATH_TOTAL - t_E - HUB_STICK, 18);   // 留置時の先端前進量
+  const slide = st.cath<=0 ? (st.checkSlide||0) : 0;        // 器具確認の外筒スライド
+  const Ltip=-GAP + slide + st.cath*(Ltip1+GAP);            // cath0:-GAP(内筒に被さる) → cath1:Ltip1(血管内)
+  const Lhub=Ltip - CATH_TOTAL;
+  const axisPt=(u)=>({x:N.x+dx*u, y:N.y+dy*u});
+  const hubP=axisPt(Lhub);
+  const hy=clamp(N.y, LUMEN_C, LUMEN_B-3);          // 血管内を走る高さ
+  let cTipX, cTipY, tubeD, hub={x:hubP.x,y:hubP.y};
+  if(Ltip<=0){ const tp=axisPt(Ltip); cTipX=tp.x; cTipY=tp.y; tubeD=`M${hubP.x} ${hubP.y} L${tp.x} ${tp.y}`; }
+  else { cTipX=N.x+Ltip; cTipY=hy; tubeD=`M${hubP.x} ${hubP.y} L${N.x} ${N.y} L${cTipX} ${hy}`; }
+  // 外筒逆血：先端が少しでも血管内に入ったら外筒の内側"全体"が赤くなる（針を抜くと消える）
+  const bloodD = (!st.connected && (g.outerFlash || st.cath>0.02)) ? tubeD : '';
+  const gc=GAUGES[gaugeIdx].c;
+  $('#cOutline').setAttribute('d',tubeD); $('#cOutline').setAttribute('stroke',gc);
+  $('#cTube').setAttribute('d',tubeD); $('#cTube').setAttribute('stroke',gc);
+  $('#cBlood').setAttribute('d',bloodD); $('#cBlood').setAttribute('opacity',bloodD?1:0);
+  $('#cHubRect').setAttribute('fill',gc); $('#cWing1').setAttribute('fill',gc); $('#cWing2').setAttribute('fill',gc);
+  $('#cGaugeText').textContent=GAUGES[gaugeIdx].g;
+  $('#cHub').setAttribute('transform',`translate(${hub.x} ${hub.y}) rotate(${st.angle})`);
+  const glowOn=st.laid&&!placed();
+  $('#cGlow').setAttribute('transform',`translate(${hub.x} ${hub.y})`);
+  $('#cGlow').style.opacity=glowOn?'':'0'; $('#cGlow').style.display=glowOn?'':'none';
+
+  // 駆血・怒張
+  const tourOn=st.tourniquet&&!st.tourReleased;
+  $('#tband').setAttribute('opacity',tourOn?1:0);
+  const vw=$('#veinWall'), vl=$('#veinLumen');
+  if(tourOn){vw.setAttribute('y',85);vw.setAttribute('height',26);vl.setAttribute('y',88);vl.setAttribute('height',20);vl.setAttribute('fill','var(--vein-eng)');}
+  else{vw.setAttribute('y',88);vw.setAttribute('height',20);vl.setAttribute('y',91);vl.setAttribute('height',14);vl.setAttribute('fill','var(--vein-lumen)');}
+
+  // 皮膚を末梢へ牽引する手（穿刺部より末梢側・逆血確認まで。針の刺入路を邪魔しない位置）
+  const stg=$('#stretch');
+  if(st.stretched && !st.innerSeen){ stg.setAttribute('transform',`translate(${clamp(st.sheenX-46-(st.tractPull||0),130,250)} ${SKIN-1})`); stg.setAttribute('opacity',1);} else stg.setAttribute('opacity',0);
+
+  $('#hematoma').setAttribute('opacity',g.throughBack?1:0); $('#hematoma').setAttribute('cx',clamp(N.x,50,550));
+  $('#angleVal').textContent=st.angle;
+  // 消毒跡は消毒した位置に固定（針に追従しない）
+  $('#sheen').setAttribute('opacity',st.disinfected?.45:0); $('#sheen').setAttribute('cx',st.sheenX);
+
+  // 中枢側圧迫の手（外筒先端のすぐ中枢側の"血管"を上から圧迫）
+  const fg=$('#finger'), fx=clamp(cTipX+15,120,470);
+  fg.setAttribute('opacity',st.compress?1:0);
+  fg.setAttribute('transform',`translate(${fx} ${SKIN-2})`);
+  // 圧迫で静脈が凹む表現
+  const occ=$('#occl'); if(occ){ occ.setAttribute('cx',fx); occ.setAttribute('opacity',st.compress?.5:0); }
+
+  const iv=$('#ivset');
+  if(st.connected){ const ivd=`M88,66 C88,92 ${hub.x-42},${hub.y-30} ${hub.x+9},${hub.y}`;
+    $('#ivpath').setAttribute('d',ivd); $('#ivpath2').setAttribute('d',ivd);
+    $('#ivclamp').setAttribute('transform','translate(88 84)'); iv.setAttribute('opacity',1);
+  } else iv.setAttribute('opacity',0);
+  const dr=$('#dressing');
+  if(st.taped){ $('#drect').setAttribute('x',hub.x-28); $('#drect').setAttribute('y',hub.y-20); dr.setAttribute('opacity',1);} else dr.setAttribute('opacity',0);
+
+  // ズーム（拡大範囲を本体にも枠で表示）
+  const zc = st.laid? {x:N.x+30, y:(LUMEN_C+BACKY)/2} : {x:N.x, y:(clamp(N.y,SKIN,LUMEN_C)+LUMEN_C)/2};
+  const zx=clamp(zc.x-ZW/2,0,600-ZW), zy=clamp(zc.y-ZH/2,0,210-ZH);
+  zoomSvg.setAttribute('viewBox',`${zx} ${zy} ${ZW} ${ZH}`);
+  const zr=$('#zoomRect'); zr.setAttribute('x',zx); zr.setAttribute('y',zy); zr.setAttribute('opacity',st.taped?0:.9);
+
+  const h=hint(g); const hp=$('#hintp'); hp.className='hintp'+(h.c?(' '+h.c):''); $('#hintt').textContent=h.t;
+
+  const panel=$('#panel'); let curId=null;
+  for(const s of STEPS){ if(!s.fin()){curId=s.id;break;} }
+  panel.innerHTML='';
+  STEPS.forEach((s,i)=>{
+    const b=document.createElement('button'); const done=s.fin(), isCur=s.id===curId;
+    const tappable=isCur && !s.manual && !busy;
+    b.className='sbtn'+(done?' fin':(isCur?(s.manual?' drag':' cur'):''));
+    b.disabled=!(tappable||done||isCur);
+    const dh=s.manual&&isCur&&!done?' <span class="c">✋ドラッグ</span>':'';
+    b.innerHTML='<span class="n">'+(i+1)+'</span>'+(done?'<span class="c">✓</span>':'')+s.lbl+dh;
+    if(tappable) b.onclick=()=>{s.run&&s.run();render();};
+    panel.appendChild(b);
+  });
+  const cur=STEPS.find(s=>s.id===curId);
+  $('#note').textContent=st.taped?'完了しました。おつかれさまでした。':(cur?cur.note:'');
+}
+
+function animate(get,set,to,dur,done){const g0=gen;busy=true;const from=get();const t0=performance.now();let fin=false;
+  const finish=()=>{if(fin)return;fin=true;if(g0!==gen)return;set(to);busy=false;done&&done();render();};
+  (function s(now){if(fin||g0!==gen)return;const k=Math.min(1,(now-t0)/dur);set(from+(to-from)*k);render();
+   if(k<1)requestAnimationFrame(s);else finish();})(performance.now());
+  setTimeout(finish,dur+500);}
+
+function doPrep(){
+  const g0=gen;
+  // 内筒に沿って外筒を前後にスライドさせて器具確認 → 消毒
+  animate(()=>st.checkSlide,v=>st.checkSlide=v,16,300,()=>
+   animate(()=>st.checkSlide,v=>st.checkSlide=v,0,300,()=>{
+     if(g0!==gen)return;
+     st.checked=true; toast('外筒スライドOK・器具確認','ok');
+     st.swabActive=true; $('#swab').setAttribute('opacity',1); st.sheenX=st.tip.x;
+     const cx=st.tip.x, y0=SKIN-6; let n=0; busy=true;
+     const step=()=>{ if(g0!==gen)return; n++; $('#swab').setAttribute('transform',`translate(${cx+(n%2?22:-22)} ${y0})`);
+       if(n<6){setTimeout(step,140);} else {$('#swab').setAttribute('opacity',0);st.swabActive=false;st.disinfected=true;busy=false;toast('消毒 完了','ok');render();} };
+     $('#swab').setAttribute('transform',`translate(${cx} ${y0})`); render(); step();
+     setTimeout(()=>{ if(g0!==gen)return; if(!st.disinfected){$('#swab').setAttribute('opacity',0);st.swabActive=false;st.disinfected=true;busy=false;render();} },3000);
+   }));
+}
+
+function doStretch(){ st.stretched=true; st.tractPull=0; toast('皮膚を末梢へ牽引 — 血管を固定','ok');
+  animate(()=>st.tractPull, v=>st.tractPull=v, 22, 520); }   // 皮膚と平行に末梢(左)へ引く
+
+function doLay(){ st.angle=LAY_ANGLE; st.tip.y=LUMEN_C; st.laid=true; toast('寝かせて数mm前進…','ok');
+  // 針を寝かせ、針軸(斜め下)方向へ数mm前進＝血管内へ入っていく向き
+  const th=rad(LAY_ANGLE), dx=Math.cos(th), dy=Math.sin(th), sx=st.tip.x, sy=st.tip.y;
+  animate(()=>0, v=>{st.tip.x=sx+dx*v; st.tip.y=sy+dy*v;}, 10, 620, ()=>{st.advanced=true;toast('外筒先端が血管内へ','ok');}); }
+function doAdvance(){ if(st.angle>LAY_ANGLE){st.angle=LAY_ANGLE;} st.tip.y=LUMEN_C; animate(()=>st.cath,v=>st.cath=v,1,1000); }
+
+// 抜針〜固定（中枢圧迫は抜針時だけ→接続時に解除）
+function doFinish(){
+  const g0=gen;
+  busy=true; st.compress=true; toast('① 中枢側を圧迫','ok'); render();
+  setTimeout(()=>{ if(g0!==gen)return; toast('② 内筒を抜く','ok');
+    animate(()=>st.ret,v=>st.ret=v,1,850,()=>{ if(g0!==gen)return;
+      busy=true; st.compress=false; st.connected=true; toast('③ 圧迫解除・ルート接続','ok'); render();
+      setTimeout(()=>{ if(g0!==gen)return; st.taped=true; busy=false; toast('④ 固定 完了','ok'); render(); },700);
+    });
+  },900);
+  setTimeout(()=>{ if(g0!==gen)return; if(!st.taped){st.compress=false;st.ret=1;st.connected=true;st.taped=true;busy=false;render();} },6000);
+}
+
+function svgPt(e){const m=scene.getScreenCTM().inverse();const p=scene.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const r=p.matrixTransform(m);return{x:r.x,y:r.y};}
+function puncActive(){ const cur=STEPS.find(s=>!s.fin()); return cur && cur.id==='punc' && !busy; }
+scene.addEventListener('pointerdown',e=>{ if(!puncActive())return; e.preventDefault(); drag=true; scene.setPointerCapture?.(e.pointerId); moveTo(e); });
+window.addEventListener('pointermove',e=>{ if(drag)moveTo(e); });
+window.addEventListener('pointerup',()=>{drag=false;});
+window.addEventListener('pointercancel',()=>{drag=false;});
+function moveTo(e){
+  const p=svgPt(e), th=rad(st.angle), dx=Math.cos(th), dy=Math.sin(th);
+  const SMAX=(BACK_WALL+8-SKIN)/dy;
+  if(st.entryX!=null){
+    // 挿入後：角度そのまま、針軸（斜め下）方向へ前進/後退
+    const E={x:st.entryX, y:SKIN}, s=(p.x-E.x)*dx + (p.y-E.y)*dy;
+    if(s < -6){ st.entryX=null; }          // 皮膚より手前まで引いたら再位置決め可
+    else { const sc=clamp(s,0,SMAX); st.tip={x:E.x+dx*sc, y:E.y+dy*sc}; render(); return; }
+  }
+  // 未挿入：自由に位置決め。皮膚を越えたら刺入点を固定
+  const tx=clamp(p.x,ENTRY_MIN,ENTRY_MAX), ty=clamp(p.y,SKIN-22,BACK_WALL+8);
+  st.tip={x:tx,y:ty};
+  if(ty>=SKIN) st.entryX = tx - dx*((ty-SKIN)/dy);
+  render();
+}
+
+$('#reset').onclick=reset;
+buildGsel();
+reset();
+</script>
